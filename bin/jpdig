@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# jpdig - Java Parallel Dig
+# Shell wrapper for convenient command-line invocation.
+#
+# Usage: jpdig [options] <domain>
+#
+
+# Resolve the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Look for the JAR in common locations
+JAR=""
+for candidate in \
+    "$SCRIPT_DIR/../target/jpdig-1.0-SNAPSHOT.jar" \
+    "$SCRIPT_DIR/jpdig.jar" \
+    "$SCRIPT_DIR/../jpdig.jar" \
+    "$SCRIPT_DIR/../lib/jpdig.jar"; do
+    if [ -f "$candidate" ]; then
+        JAR="$candidate"
+        break
+    fi
+done
+
+if [ -z "$JAR" ]; then
+    echo "Error: jpdig.jar not found." >&2
+    echo "Build the project first: mvn package" >&2
+    echo "Or place jpdig.jar next to this script." >&2
+    exit 1
+fi
+
+# Run with Java, passing all arguments through
+exec java -jar "$JAR" "$@"

@@ -1,0 +1,32 @@
+Erzeuge ein maven java 25 projekt.
+
+Benutze picocli oder eine ähnliche library für die cli parameter.
+Benutze die java xbill dns library.
+Sende die DNS Queries ohne recursion desired.
+
+Das programm heißt jpdig java parallel dig
+
+schreibe einen /bin/sh wrapper der das unhandliche /usr/bin/java -jar jpdig.jar -opt1 -opt2 wegkapselt so das man einfach jpdig -opt1 -opt2 auf der Kommandozeile eingeben kann.
+
+schreibe eine cli die wie dig +trace eine namesauflösung macht. mit folgenden zusätzlichen features:
+- es werden auf jeder ebene alle v4 und v6 adressen für die NS Records abgefragt
+- es wird die latenz jeder einzelnen ip gemessen
+- es werden die ttls der NS der delegierenden und der autoritativen Zone miteinander verglichen und abweichungen ausgegeben.
+- es werden die ttls der NS, A und AAAA records bewertet warn für ttls kleiner 3600 und error für ttls kleiner 600
+- optional wird jede IP auch mit nsid abgefragt und der string ausgegebn um zu sehen auf welcher anycast node die Anfrage beantwortet wurde
+- das programm stellt automatisch fest ob dual stack oder nur v4, nur v6 funktioniert und beschwert sich nicht darüber wenn z.B. keine dns queries an v6 adressen geschickt werden können.
+- es wird überprüft ob die NS Records in der delegierenden und der autoritativen Zone die gleichen sind. Abweichungen werden gemeldet.
+- Der diff zwischen der delegierenden und autoritativen Zone wird möglichst kompakt gehalten. In der Situation das die delegierenden Server oder autoritativen Server voneinander abweichende NS RR Sets haben, werden diese aufgelistet.
+- Die Namesauflösungen für die A und AAAA Records werden auch mit latenz aufgelistet.
+- Für jede Ebene werden min/max latenz gelistet
+- es gibt eine statistik wieviele queries pro ebene gemacht wurden. 
+- Wird A/AAAA Glue mitgeliefert wird validiert ob in der autoritativen Zone die gleiche IP für den Namen ist und entsprechend gewarnt. es werden alle IPs weiterverfolgt (also die glue IPs und die IPs aus autoritativen Zone)
+- Schreibe eine README.md in Englisch
+- Den Programmcode Englisch kommentieren und englische funktions und Variablen Namen etc verwenden.
+- option nur per tcp zu fragen
+- in jeder Ebene die DNS Abfragen parallelisieren
+- die nameserver werden by default per udp befragt. automatischer fallback auf tcp bei zu großen antworten, warnung.
+
+Validiere die Spezifikation
+
+Stelle Fragen
