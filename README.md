@@ -7,6 +7,7 @@ A parallel DNS trace tool similar to `dig +trace` with enhanced validation, writ
 - **Parallel DNS queries**: All nameserver IPs at each delegation level are queried in parallel using Java virtual threads
 - **Full NS delegation trace**: Traces the NS delegation chain from root servers to the target domain
 - **IPv4 and IPv6**: Resolves and queries all A and AAAA addresses for each nameserver
+- **Out-of-bailiwick NS resolution**: When a referral has NS records without glue (nameservers in a different zone), their addresses are resolved iteratively from the root
 - **Automatic connectivity detection**: Detects whether IPv4, IPv6 or dual-stack is available; silently skips unavailable protocols
 - **NS consistency checking**: Compares NS record sets between delegating (parent) and authoritative (child) zones
 - **NS variant detection**: Detects when different servers at the same level return different NS sets

@@ -776,6 +776,45 @@ public class TraceEngine {
                 }
             }
             nextServers = filterByConnectivity(nextServers);
+
+            // No glue (out-of-bailiwick NS): resolve referral NS names from root
+            if (nextServers.isEmpty()) {
+                List<String> referralNsNames = new ArrayList<>();
+                for (org.xbill.DNS.Record rec : msg.getSection(Section.AUTHORITY)) {
+                    if (rec instanceof NSRecord nsRec) {
+                        referralNsNames.add(nsRec.getTarget().toString());
+                    }
+                }
+                List<InetAddress> rootServers = filterByConnectivity(
+                        new ArrayList<>(RootHints.getAddressToNameMap().keySet()));
+                Map<InetAddress, String> rootMap = RootHints.getAddressToNameMap();
+                for (String refNs : referralNsNames) {
+                    // Avoid self-loop: don't resolve the same name we're trying to resolve
+                    if (refNs.equalsIgnoreCase(nsName)) continue;
+                    Name refName;
+                    try {
+                        refName = Name.fromString(refNs);
+                    } catch (TextParseException e) {
+                        continue;
+                    }
+                    List<TraceModel.NsAddressRecord> refResolved = new ArrayList<>();
+                    if (connectivity.ipv4Available()) {
+                        resolveIterativelyForType(refName, refNs, rootServers, rootMap,
+                                refResolved, Type.A, depth + 1);
+                    }
+                    if (connectivity.ipv6Available()) {
+                        resolveIterativelyForType(refName, refNs, rootServers, rootMap,
+                                refResolved, Type.AAAA, depth + 1);
+                    }
+                    for (var rec : refResolved) {
+                        nextServers.add(rec.address());
+                        nextMap.put(rec.address(), refNs);
+                    }
+                    if (!nextServers.isEmpty()) break;
+                }
+                nextServers = filterByConnectivity(nextServers);
+            }
+
             if (!nextServers.isEmpty()) {
                 resolveIterativelyForType(name, nsName, nextServers, nextMap, results, type, depth + 1);
                 if (!results.isEmpty()) return;
