@@ -399,6 +399,7 @@ public class TraceEngine {
             if (!result.isSuccess()) continue;
             Message msg = result.response();
             boolean aa = msg.getHeader().getFlag(Flags.AA);
+            int rcode = msg.getHeader().getRcode();
 
             // Check for CNAME in ANSWER section
             String cname = extractCname(msg, target);
@@ -407,7 +408,13 @@ public class TraceEngine {
                 analysis.isAuthoritative = true;
             }
 
-            if (aa) {
+            if (aa && rcode != Rcode.NOERROR) {
+                // Authoritative error (NXDOMAIN, etc.) - record and mark final
+                analysis.isAuthoritative = true;
+                if (analysis.rcode == Rcode.NOERROR) {
+                    analysis.rcode = rcode;
+                }
+            } else if (aa) {
                 // Authoritative answer
                 analysis.isAuthoritative = true;
                 Set<String> nsSet = extractNsFromAnswer(msg);
@@ -478,6 +485,7 @@ public class TraceEngine {
         Map<Set<String>, List<String>> authNsVariants = new LinkedHashMap<>();
 
         String cnameTarget = null;
+        int rcode = Rcode.NOERROR;
     }
 
     /**
@@ -497,6 +505,19 @@ public class TraceEngine {
         // If we have authoritative NS from the AA response itself
         Set<String> authNs = analysis.authoritativeNs;
         long authTtl = analysis.authoritativeTtl;
+
+        if (analysis.rcode != Rcode.NOERROR) {
+            validations.add(new TraceModel.ValidationMessage(
+                    TraceModel.Severity.ERROR,
+                    "Authoritative " + Rcode.string(analysis.rcode)
+                            + " for " + target + " - domain does not exist "
+                            + "(check for typos in the domain name)"));
+        } else if (analysis.authoritativeNs.isEmpty() && analysis.cnameTarget == null) {
+            validations.add(new TraceModel.ValidationMessage(
+                    TraceModel.Severity.ERROR,
+                    "Authoritative NODATA for " + target + " NS - "
+                            + "no NS records at this name"));
+        }
 
         if (analysis.cnameTarget != null) {
             validations.add(new TraceModel.ValidationMessage(
