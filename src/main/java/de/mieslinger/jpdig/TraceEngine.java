@@ -299,9 +299,24 @@ public class TraceEngine {
                 Validator.validateTtl("authoritative NS", authoritativeTtl, validations);
 
                 // Glue validation
+                // Combine addresses from auth-server responses with non-glue
+                // entries from nsResolutions (iteratively-resolved A/AAAA from
+                // the NS hostname's actual zone). The latter is essential when
+                // the NS is out-of-bailiwick: auth servers won't return its
+                // glue, and direct queries to them for the NS hostname return
+                // nothing because they aren't authoritative for that name.
+                Map<String, Set<InetAddress>> resolvedNonGlue = new HashMap<>();
+                for (var rec : nsResolutions) {
+                    if (!rec.fromGlue()) {
+                        resolvedNonGlue.computeIfAbsent(rec.nsName(),
+                                k -> new LinkedHashSet<>()).add(rec.address());
+                    }
+                }
                 for (String nsName : glueRecords.keySet()) {
                     Set<InetAddress> glue = glueRecords.get(nsName);
-                    Set<InetAddress> auth = authoritativeAddresses.getOrDefault(nsName, Set.of());
+                    Set<InetAddress> auth = new LinkedHashSet<>(
+                            authoritativeAddresses.getOrDefault(nsName, Set.of()));
+                    auth.addAll(resolvedNonGlue.getOrDefault(nsName, Set.of()));
                     if (!glue.isEmpty() && !auth.isEmpty()) {
                         boolean matches = glue.equals(auth);
                         glueValidations.add(new TraceModel.GlueValidation(
