@@ -305,29 +305,70 @@ public class TraceEngine {
                 // the NS is out-of-bailiwick: auth servers won't return its
                 // glue, and direct queries to them for the NS hostname return
                 // nothing because they aren't authoritative for that name.
-                Map<String, Set<InetAddress>> resolvedNonGlue = new HashMap<>();
+                Map<String, Set<InetAddress>> resolvedNonGlue = new LinkedHashMap<>();
                 for (var rec : nsResolutions) {
                     if (!rec.fromGlue()) {
                         resolvedNonGlue.computeIfAbsent(rec.nsName(),
                                 k -> new LinkedHashSet<>()).add(rec.address());
                     }
                 }
+                boolean v4SkipReported = false;
+                boolean v6SkipReported = false;
                 for (String nsName : glueRecords.keySet()) {
                     Set<InetAddress> glue = glueRecords.get(nsName);
-                    Set<InetAddress> auth = new LinkedHashSet<>(
+                    Set<InetAddress> effective = new LinkedHashSet<>(
                             authoritativeAddresses.getOrDefault(nsName, Set.of()));
-                    auth.addAll(resolvedNonGlue.getOrDefault(nsName, Set.of()));
-                    if (!glue.isEmpty() && !auth.isEmpty()) {
-                        boolean matches = glue.equals(auth);
-                        glueValidations.add(new TraceModel.GlueValidation(
-                                nsName, glue, auth, matches));
-                        if (!matches) {
-                            validations.add(new TraceModel.ValidationMessage(
-                                    TraceModel.Severity.WARN,
-                                    "Glue mismatch for " + nsName
-                                            + ": glue=" + formatAddresses(glue)
-                                            + " auth=" + formatAddresses(auth)));
-                        }
+                    effective.addAll(resolvedNonGlue.getOrDefault(nsName, Set.of()));
+                    if (glue.isEmpty()) continue;
+
+                    boolean glueHasV4 = glue.stream().anyMatch(a -> a instanceof Inet4Address);
+                    boolean glueHasV6 = glue.stream().anyMatch(a -> a instanceof Inet6Address);
+
+                    // Emit a per-level skip message once for each family that
+                    // has glue we cannot verify due to missing local connectivity.
+                    if (glueHasV4 && !connectivity.ipv4Available() && !v4SkipReported) {
+                        validations.add(new TraceModel.ValidationMessage(
+                                TraceModel.Severity.WARN,
+                                "Glue verification skipped - no IPv4 connectivity"));
+                        v4SkipReported = true;
+                    }
+                    if (glueHasV6 && !connectivity.ipv6Available() && !v6SkipReported) {
+                        validations.add(new TraceModel.ValidationMessage(
+                                TraceModel.Severity.WARN,
+                                "Glue verification skipped - no IPv6 connectivity"));
+                        v6SkipReported = true;
+                    }
+
+                    // Compare per address family, but only families we can verify.
+                    // Partial mismatch within a verifiable family is still a glue mismatch.
+                    Set<InetAddress> verifiableGlue = new LinkedHashSet<>();
+                    Set<InetAddress> verifiableEffective = new LinkedHashSet<>();
+                    if (connectivity.ipv4Available()) {
+                        glue.stream().filter(a -> a instanceof Inet4Address)
+                                .forEach(verifiableGlue::add);
+                        effective.stream().filter(a -> a instanceof Inet4Address)
+                                .forEach(verifiableEffective::add);
+                    }
+                    if (connectivity.ipv6Available()) {
+                        glue.stream().filter(a -> a instanceof Inet6Address)
+                                .forEach(verifiableGlue::add);
+                        effective.stream().filter(a -> a instanceof Inet6Address)
+                                .forEach(verifiableEffective::add);
+                    }
+
+                    if (verifiableGlue.isEmpty() || verifiableEffective.isEmpty()) {
+                        continue;
+                    }
+
+                    boolean matches = verifiableGlue.equals(verifiableEffective);
+                    glueValidations.add(new TraceModel.GlueValidation(
+                            nsName, verifiableGlue, verifiableEffective, matches));
+                    if (!matches) {
+                        validations.add(new TraceModel.ValidationMessage(
+                                TraceModel.Severity.WARN,
+                                "Glue mismatch for " + nsName
+                                        + ": glue=" + formatAddresses(verifiableGlue)
+                                        + " auth=" + formatAddresses(verifiableEffective)));
                     }
                 }
 
