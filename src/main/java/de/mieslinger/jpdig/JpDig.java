@@ -51,6 +51,29 @@ public class JpDig implements Callable<Integer> {
             defaultValue = "0")
     private int retries;
 
+    @Option(names = {"--aslookup", "-z"},
+            description = "Display AS number for each queried server IP "
+                    + "(equivalent to --ipinfo 0)")
+    private boolean asLookup;
+
+    @Option(names = {"--ipinfo", "-y"},
+            description = "Display info per queried IP. Digits 0..4 (combinable, "
+                    + "e.g. \"013\" or \"0,1,3\"): "
+                    + "0=AS, 1=prefix, 2=country, 3=RIR, 4=allocation date.")
+    private String ipInfoSpec;
+
+    @Option(names = {"--ipinfo_provider4"},
+            description = "Provider domain for IPv4 AS lookups "
+                    + "(default: ${DEFAULT-VALUE})",
+            defaultValue = "origin.asn.cymru.com")
+    private String ipInfoProvider4;
+
+    @Option(names = {"--ipinfo_provider6"},
+            description = "Provider domain for IPv6 AS lookups "
+                    + "(default: ${DEFAULT-VALUE})",
+            defaultValue = "origin6.asn.cymru.com")
+    private String ipInfoProvider6;
+
     @Override
     public Integer call() {
         try {
@@ -58,6 +81,18 @@ public class JpDig implements Callable<Integer> {
             if (!domain.endsWith(".")) {
                 domain = domain + ".";
             }
+
+            // Parse ipinfo field selection
+            IpInfoFields ipInfoFields;
+            try {
+                ipInfoFields = IpInfoFields.parse(ipInfoSpec, asLookup);
+            } catch (IllegalArgumentException e) {
+                System.err.println("ERROR: " + e.getMessage());
+                return 2;
+            }
+            IpInfoLookup ipInfoLookup = ipInfoFields.isEmpty()
+                    ? null
+                    : new IpInfoLookup(ipInfoProvider4, ipInfoProvider6, timeoutMs);
 
             // Detect IPv4/IPv6 connectivity
             if (!jsonOutput) {
@@ -83,14 +118,15 @@ public class JpDig implements Callable<Integer> {
                     ? msg -> {}
                     : msg -> System.err.println("  " + msg);
 
-            TraceEngine engine = new TraceEngine(dnsClient, connectivity, progressListener, timeoutMs);
+            TraceEngine engine = new TraceEngine(dnsClient, connectivity,
+                    progressListener, timeoutMs, ipInfoLookup);
             TraceModel.TraceResult result = engine.trace(domain);
 
             // Output results
             if (jsonOutput) {
-                new JsonOutput().print(result);
+                new JsonOutput(ipInfoFields).print(result);
             } else {
-                new ColoredOutput(!noColor).print(result);
+                new ColoredOutput(!noColor, ipInfoFields).print(result);
             }
 
             return 0;

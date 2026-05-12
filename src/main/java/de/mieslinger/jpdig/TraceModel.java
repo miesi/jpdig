@@ -59,7 +59,21 @@ public final class TraceModel {
             String nsid,
             String error,
             Set<String> nsRecords,
-            long nsRecordTtl
+            long nsRecordTtl,
+            IpInfo ipInfo
+    ) {}
+
+    /**
+     * Information about an IP address obtained from a Cymru-style ASN lookup
+     * (TXT at origin.asn.cymru.com / origin6.asn.cymru.com).
+     * Any field may be null if not available.
+     */
+    public record IpInfo(
+            String asn,
+            String prefix,
+            String country,
+            String rir,
+            String date
     ) {}
 
     /** Glue validation result for one NS name. */

@@ -34,6 +34,7 @@ public class TraceEngine {
     private final TraceModel.ConnectivityInfo connectivity;
     private final Consumer<String> progress;
     private final int timeoutMs;
+    private final IpInfoLookup ipInfoLookup;
 
     // Query counters by type
     private int nsQueryCount;
@@ -41,15 +42,22 @@ public class TraceEngine {
     private int aaaaQueryCount;
 
     public TraceEngine(DnsClient client, TraceModel.ConnectivityInfo connectivity, int timeoutMs) {
-        this(client, connectivity, msg -> {}, timeoutMs);
+        this(client, connectivity, msg -> {}, timeoutMs, null);
     }
 
     public TraceEngine(DnsClient client, TraceModel.ConnectivityInfo connectivity,
                        Consumer<String> progress, int timeoutMs) {
+        this(client, connectivity, progress, timeoutMs, null);
+    }
+
+    public TraceEngine(DnsClient client, TraceModel.ConnectivityInfo connectivity,
+                       Consumer<String> progress, int timeoutMs,
+                       IpInfoLookup ipInfoLookup) {
         this.client = client;
         this.connectivity = connectivity;
         this.progress = progress;
         this.timeoutMs = timeoutMs;
+        this.ipInfoLookup = ipInfoLookup;
     }
 
     /**
@@ -894,6 +902,15 @@ public class TraceEngine {
     /** Build ServerQueryDetail list from query results. */
     private List<TraceModel.ServerQueryDetail> buildQueryDetails(
             List<TraceModel.QueryResult> results) {
+        // Prefetch IpInfo for all queried IPs in parallel (cached across levels)
+        if (ipInfoLookup != null) {
+            List<InetAddress> ips = new ArrayList<>(results.size());
+            for (var r : results) {
+                if (r.server() != null) ips.add(r.server());
+            }
+            ipInfoLookup.prefetch(ips);
+        }
+
         List<TraceModel.ServerQueryDetail> details = new ArrayList<>();
         for (var r : results) {
             Set<String> ns = new LinkedHashSet<>();
@@ -917,9 +934,13 @@ public class TraceEngine {
                 }
             }
 
+            TraceModel.IpInfo ipInfo = (ipInfoLookup != null && r.server() != null)
+                    ? ipInfoLookup.lookup(r.server())
+                    : null;
+
             details.add(new TraceModel.ServerQueryDetail(
                     r.serverName(), r.server(), r.latency(), r.protocol(),
-                    r.tcpFallback(), r.nsid(), r.error(), ns, ttl));
+                    r.tcpFallback(), r.nsid(), r.error(), ns, ttl, ipInfo));
         }
         return details;
     }

@@ -15,6 +15,7 @@ A parallel DNS trace tool similar to `dig +trace` with enhanced validation, writ
 - **TTL comparison**: Compares NS record TTLs between delegation and authoritative responses
 - **Glue record validation**: Verifies that glue addresses match authoritative A/AAAA records
 - **NSID support**: Optional NSID (RFC 5001) queries to identify anycast nodes
+- **IP info / ASN lookup**: Optional Cymru-style AS/prefix/country/RIR/allocation-date display per queried IP (mtr-compatible `-z` and `-y` flags)
 - **Latency measurement**: Measures and displays query latency for every DNS query
 - **Per-level statistics**: Query counts (UDP/TCP/failed), min/max latency per level
 - **TCP support**: Force TCP mode, or automatic TCP fallback on truncated UDP responses (with warning)
@@ -65,6 +66,19 @@ Options:
   --no-color        Disable colored terminal output
   -t, --timeout=N   Query timeout in milliseconds (default: 100)
   -r, --retries=N   Number of retries per query (default: 0)
+  -z, --aslookup    Display AS number for each queried IP (= --ipinfo 0)
+  -y, --ipinfo=SPEC Display IP info per queried IP. SPEC is a combinable list
+                    of digits 0..4, given as a string ("013") or comma list
+                    ("0,1,3"):
+                      0 = AS number
+                      1 = IP prefix
+                      2 = country code
+                      3 = RIR
+                      4 = allocation date
+  --ipinfo_provider4=DOMAIN
+                    Provider for IPv4 AS lookups (default: origin.asn.cymru.com)
+  --ipinfo_provider6=DOMAIN
+                    Provider for IPv6 AS lookups (default: origin6.asn.cymru.com)
 ```
 
 ## Examples
@@ -93,6 +107,30 @@ jpdig --json example.com | jq '.levels[].validations'
 ```bash
 jpdig --timeout 500 --retries 2 example.com
 ```
+
+### Show ASN per queried IP
+```bash
+jpdig -z example.com
+```
+
+### Show AS, prefix and RIR
+```bash
+jpdig -y 013 example.com
+# or equivalently
+jpdig -y 0,1,3 example.com
+```
+
+The selected fields are appended to the existing `[NSID:...]` bracket per
+query line, in canonical order, space-separated:
+
+```
+2a02:568:fe02::de (z.nic.de.) UDP 6.0ms [NSID:k.r.defra-4 AS:31529 PREFIX:2a02:568:fe02::/48 RIR:ripencc]
+```
+
+Lookups use Cymru's `origin.asn.cymru.com` / `origin6.asn.cymru.com` TXT
+service via the local stub resolver. Override with `--ipinfo_provider4` and
+`--ipinfo_provider6`. Results are cached per IP for the duration of a
+single trace run.
 
 ## Output Explanation
 

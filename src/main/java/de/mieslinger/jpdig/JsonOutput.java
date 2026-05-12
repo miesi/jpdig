@@ -16,6 +16,16 @@ import java.util.stream.Collectors;
  */
 public class JsonOutput {
 
+    private final IpInfoFields ipInfoFields;
+
+    public JsonOutput() {
+        this(IpInfoFields.empty());
+    }
+
+    public JsonOutput(IpInfoFields ipInfoFields) {
+        this.ipInfoFields = ipInfoFields == null ? IpInfoFields.empty() : ipInfoFields;
+    }
+
     public void print(TraceModel.TraceResult result) {
         try {
             ObjectMapper mapper = new ObjectMapper();
@@ -152,6 +162,8 @@ public class JsonOutput {
             if (q.tcpFallback()) qj.put("tcpFallback", true);
             if (q.nsid() != null) qj.put("nsid", q.nsid());
             if (q.error() != null) qj.put("error", q.error());
+            Map<String, Object> ipInfoJson = buildIpInfoJson(q.ipInfo());
+            if (ipInfoJson != null) qj.put("ipInfo", ipInfoJson);
             list.add(qj);
         }
         return list;
@@ -178,6 +190,25 @@ public class JsonOutput {
             list.add(v);
         }
         return list;
+    }
+
+    private Map<String, Object> buildIpInfoJson(TraceModel.IpInfo info) {
+        if (info == null || ipInfoFields.isEmpty()) return null;
+        Map<String, Object> m = new LinkedHashMap<>();
+        for (IpInfoFields.Field f : IpInfoFields.Field.values()) {
+            if (!ipInfoFields.contains(f)) continue;
+            String v = IpInfoFields.value(f, info);
+            if (v == null || v.isEmpty()) continue;
+            String key = switch (f) {
+                case AS -> "as";
+                case PREFIX -> "prefix";
+                case COUNTRY -> "country";
+                case RIR -> "rir";
+                case DATE -> "date";
+            };
+            m.put(key, v);
+        }
+        return m.isEmpty() ? null : m;
     }
 
     private double durationMs(Duration d) {

@@ -12,6 +12,7 @@ import java.util.Comparator;
 public class ColoredOutput {
 
     private final boolean useColor;
+    private final IpInfoFields ipInfoFields;
 
     // ANSI color codes
     private static final String RESET = "\033[0m";
@@ -26,7 +27,12 @@ public class ColoredOutput {
     private static final String WHITE = "\033[97m";
 
     public ColoredOutput(boolean useColor) {
+        this(useColor, IpInfoFields.empty());
+    }
+
+    public ColoredOutput(boolean useColor, IpInfoFields ipInfoFields) {
         this.useColor = useColor;
+        this.ipInfoFields = ipInfoFields == null ? IpInfoFields.empty() : ipInfoFields;
     }
 
     public void print(TraceModel.TraceResult result) {
@@ -194,8 +200,9 @@ public class ColoredOutput {
                 if (q.tcpFallback()) {
                     sb.append(" ").append(yellow("(TCP fallback - truncated)"));
                 }
-                if (q.nsid() != null) {
-                    sb.append(" ").append(magenta("[NSID: " + q.nsid() + "]"));
+                String bracket = formatInfoBracket(q.nsid(), q.ipInfo());
+                if (bracket != null) {
+                    sb.append(" ").append(magenta(bracket));
                 }
             }
             println(sb.toString());
@@ -228,6 +235,25 @@ public class ColoredOutput {
                 + result.aaaaQueries() + " AAAA)");
         println("  Total time: " + formatLatency(result.totalDuration()));
         println("");
+    }
+
+    /**
+     * Build the "[NSID:... AS:... PREFIX:... COUNTRY:... RIR:... DATE:...]"
+     * bracket. Pairs are space-separated, no spaces inside a key:value pair.
+     * Returns null if there is nothing to show.
+     */
+    private String formatInfoBracket(String nsid, TraceModel.IpInfo info) {
+        List<String> parts = new ArrayList<>();
+        if (nsid != null) parts.add("NSID:" + nsid);
+        for (IpInfoFields.Field f : IpInfoFields.Field.values()) {
+            if (!ipInfoFields.contains(f)) continue;
+            String value = IpInfoFields.value(f, info);
+            if (value == null || value.isEmpty()) continue;
+            String safe = value.replace(' ', '_');
+            parts.add(IpInfoFields.label(f) + ":" + safe);
+        }
+        if (parts.isEmpty()) return null;
+        return "[" + String.join(" ", parts) + "]";
     }
 
     // --- Formatting helpers ---
