@@ -193,12 +193,11 @@ public class JsonOutput {
     }
 
     private Map<String, Object> buildIpInfoJson(TraceModel.IpInfo info) {
-        if (info == null || ipInfoFields.isEmpty()) return null;
+        if (ipInfoFields.isEmpty()) return null;
         Map<String, Object> m = new LinkedHashMap<>();
         for (IpInfoFields.Field f : IpInfoFields.Field.values()) {
             if (!ipInfoFields.contains(f)) continue;
             String v = IpInfoFields.value(f, info);
-            if (v == null || v.isEmpty()) continue;
             String key = switch (f) {
                 case AS -> "as";
                 case PREFIX -> "prefix";
@@ -206,7 +205,7 @@ public class JsonOutput {
                 case RIR -> "rir";
                 case DATE -> "date";
             };
-            m.put(key, v);
+            m.put(key, (v == null || v.isEmpty()) ? null : v);
         }
         return m.isEmpty() ? null : m;
     }

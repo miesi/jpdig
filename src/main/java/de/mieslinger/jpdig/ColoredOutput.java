@@ -248,8 +248,8 @@ public class ColoredOutput {
         for (IpInfoFields.Field f : IpInfoFields.Field.values()) {
             if (!ipInfoFields.contains(f)) continue;
             String value = IpInfoFields.value(f, info);
-            if (value == null || value.isEmpty()) continue;
-            String safe = value.replace(' ', '_');
+            String safe = (value == null || value.isEmpty())
+                    ? "?" : value.replace(' ', '_');
             parts.add(IpInfoFields.label(f) + ":" + safe);
         }
         if (parts.isEmpty()) return null;
